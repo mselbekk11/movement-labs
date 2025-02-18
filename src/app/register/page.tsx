@@ -16,6 +16,7 @@ export default function RegisterPage() {
   const [walletType, setWalletType] = useState<WalletType>('EVM');
   const [address, setAddress] = useState('');
   const [message, setMessage] = useState('');
+  const [connectionSignature, setConnectionSignature] = useState('');
 
   // EVM Wallet Connection using MetaMask
   const connectEVMWallet = async () => {
@@ -28,7 +29,13 @@ export default function RegisterPage() {
       await provider.send('eth_requestAccounts', []);
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
+
+      // Add signature request during connection
+      const connectionMessage = `I approve connecting my wallet ${addr} to this application.`;
+      const signature = await signer.signMessage(connectionMessage);
+
       setAddress(addr);
+      setConnectionSignature(signature);
     } catch (error: any) {
       console.error(error);
       setMessage('Error connecting EVM wallet.');
@@ -55,34 +62,38 @@ export default function RegisterPage() {
 
   // Function to handle registration submission
   const handleRegister = async () => {
-    if (!address) {
+    if (!address || (walletType === 'EVM' && !connectionSignature)) {
       setMessage('Please connect a wallet first.');
       return;
     }
 
-    // For EVM wallets: sign a challenge message
-    let signature = '';
+    // For EVM wallets: sign a registration challenge message
+    let registrationSignature = '';
     if (walletType === 'EVM') {
       try {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const challengeMessage =
-          'Please sign this message to verify wallet ownership.';
-        signature = await signer.signMessage(challengeMessage);
+          'Please sign this message to verify wallet ownership for registration.';
+        registrationSignature = await signer.signMessage(challengeMessage);
       } catch (error: any) {
         console.log(error);
-        setMessage('Error signing message.');
+        setMessage('Error signing registration message.');
         return;
       }
     }
-    // For Movement wallets, you'd perform a similar operation or other ownership verification
 
     // Call the API route to register the wallet
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletType, address, signature }),
+        body: JSON.stringify({
+          walletType,
+          address,
+          connectionSignature,
+          registrationSignature,
+        }),
       });
       const data = await res.json();
       if (res.ok) {

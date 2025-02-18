@@ -33,7 +33,7 @@ async function saveRegistration(registration: Registration) {
 
 export async function POST(request: Request) {
   try {
-    const { walletType, address, signature } = await request.json();
+    const { walletType, address, connectionSignature, registrationSignature } = await request.json();
 
     // Basic validation
     if (!walletType || !address) {
@@ -42,21 +42,30 @@ export async function POST(request: Request) {
 
     // --- Ownership Verification ---
     if (walletType === "EVM") {
-      // For EVM: Verify signature
-      const challengeMessage = "Please sign this message to verify wallet ownership.";
+      // Verify both signatures
+      const connectionMessage = `I approve connecting my wallet ${address} to this application.`;
+      const challengeMessage = "Please sign this message to verify wallet ownership for registration.";
+      
       try {
-        const recoveredAddress = ethers.verifyMessage(challengeMessage, signature);
-        if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-          return NextResponse.json({ message: "Signature verification failed." }, { status: 401 });
+        // Verify connection signature
+        const recoveredConnectionAddress = ethers.verifyMessage(connectionMessage, connectionSignature);
+        if (recoveredConnectionAddress.toLowerCase() !== address.toLowerCase()) {
+          return NextResponse.json({ message: "Connection signature verification failed." }, { status: 401 });
+        }
+
+        // Verify registration signature
+        const recoveredRegistrationAddress = ethers.verifyMessage(challengeMessage, registrationSignature);
+        if (recoveredRegistrationAddress.toLowerCase() !== address.toLowerCase()) {
+          return NextResponse.json({ message: "Registration signature verification failed." }, { status: 401 });
         }
       } catch (error) {
-        console.log(error)
-        return NextResponse.json({ message: "Error verifying signature." }, { status: 500 });
+        console.log(error);
+        return NextResponse.json({ message: "Error verifying signatures." }, { status: 500 });
       }
     } else if (walletType === "Movement") {
       // For Movement wallets, implement appropriate verification.
       // For now, we simulate that the provided address is verified.
-      // In a real implementation, you might verify a signature or query on-chain data.
+      // In a real implementation, you might verify signatures or query on-chain data.
     }
 
     // --- Prevent Duplicate Registrations ---
